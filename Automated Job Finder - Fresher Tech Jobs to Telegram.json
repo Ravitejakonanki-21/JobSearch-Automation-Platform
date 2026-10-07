@@ -1,0 +1,1232 @@
+{
+  "name": "Automated Job Finder - Fresher Tech Jobs to Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "2248196e-1979-4732-b598-d3b8de914f7a",
+      "name": "Every 1 Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "Starts the job search every minute. Each source has its own pollEveryMinutes setting in Job Sources Config, so big boards are polled less often."
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================================\n// JOB SOURCES CONFIG  --  EDIT THIS LIST TO ADD / REMOVE COMPANIES\n// ---------------------------------------------------------------------\n// Only official, public, documented job-board APIs are used (no scraping,\n// no login, no CAPTCHA bypass):\n//   greenhouse -> https://boards-api.greenhouse.io/v1/boards/<slug>/jobs\n//   lever      -> https://api.lever.co/v0/postings/<slug>?mode=json\n//   ashby      -> https://api.ashbyhq.com/posting-api/job-board/<slug>\n// To add a company: find its careers page, check which ATS it uses\n// (URL contains greenhouse.io / lever.co / ashbyhq.com) and copy the slug.\n//   enabled          : false = skip this source\n//   pollEveryMinutes : poll big boards less often to stay light & polite\n// =====================================================================\nconst SOURCES = [\n  // ---- Greenhouse ----\n  { company: 'InMobi',     type: 'greenhouse', slug: 'inmobi',     enabled: true, pollEveryMinutes: 1 },\n  { company: 'HackerRank', type: 'greenhouse', slug: 'hackerrank', enabled: true, pollEveryMinutes: 1 },\n  { company: 'Groww',      type: 'greenhouse', slug: 'groww',      enabled: true, pollEveryMinutes: 1 },\n  { company: 'Druva',      type: 'greenhouse', slug: 'druva',      enabled: true, pollEveryMinutes: 2 },\n  { company: 'Rubrik',     type: 'greenhouse', slug: 'rubrik',     enabled: true, pollEveryMinutes: 3 },\n  { company: 'Sumo Logic', type: 'greenhouse', slug: 'sumologic',  enabled: true, pollEveryMinutes: 2 },\n  { company: 'Twilio',     type: 'greenhouse', slug: 'twilio',     enabled: true, pollEveryMinutes: 3 },\n  { company: 'Okta',       type: 'greenhouse', slug: 'okta',       enabled: true, pollEveryMinutes: 5 },\n  { company: 'GitLab',     type: 'greenhouse', slug: 'gitlab',     enabled: true, pollEveryMinutes: 5 },\n  { company: 'MongoDB',    type: 'greenhouse', slug: 'mongodb',    enabled: true, pollEveryMinutes: 5 },\n  // ---- Lever ----\n  { company: 'CRED',       type: 'lever', slug: 'cred',       enabled: true,  pollEveryMinutes: 1 },\n  { company: 'Zeta',       type: 'lever', slug: 'zeta',       enabled: true,  pollEveryMinutes: 3 },\n  { company: 'Mindtickle', type: 'lever', slug: 'mindtickle', enabled: true,  pollEveryMinutes: 2 },\n  { company: 'Paytm',      type: 'lever', slug: 'paytm',      enabled: false, pollEveryMinutes: 15 }, // very large board (~2.7 MB)\n  // ---- Ashby ----\n  { company: 'Sarvam AI',  type: 'ashby', slug: 'sarvam', enabled: true, pollEveryMinutes: 1 },\n  { company: 'Atlan',      type: 'ashby', slug: 'atlan',  enabled: true, pollEveryMinutes: 2 },\n  // ---- Adzuna (job search engine, India; free API key needed) ----\n  // Free tier limit: 250 calls/day, 1000/week, 2500/month. 4 searches every\n  // 80 min = 72 calls/day (~2230/month), so keep pollEveryMinutes >= 80.\n  { company: 'Adzuna', type: 'adzuna', where: 'Hyderabad', what: '', enabled: true, pollEveryMinutes: 80 },\n  { company: 'Adzuna', type: 'adzuna', where: 'Bangalore', what: '', enabled: true, pollEveryMinutes: 80 },\n  { company: 'Adzuna', type: 'adzuna', where: 'Chennai',   what: '', enabled: true, pollEveryMinutes: 80 },\n  { company: 'Adzuna', type: 'adzuna', where: 'India',     what: 'remote', enabled: true, pollEveryMinutes: 80 },\n];\n\n// Adzuna keyword search (matches ANY word). Role filtering happens later.\nconst ADZUNA_WHAT_OR = 'software developer python django backend analyst fresher graduate trainee machine learning data';\n\nconst URL_BUILDERS = {\n  greenhouse: (s) => 'https://boards-api.greenhouse.io/v1/boards/' + s.slug + '/jobs',\n  lever: (s) => 'https://api.lever.co/v0/postings/' + s.slug + '?mode=json',\n  ashby: (s) => 'https://api.ashbyhq.com/posting-api/job-board/' + s.slug,\n  // API keys are NOT here: they are added by the Adzuna credential.\n  // Search params (where / what / what_or) are sent by the Fetch Adzuna Jobs node.\n  adzuna: (s) => 'https://api.adzuna.com/v1/api/jobs/in/search/1',\n};\n\n// Throttle: a source with pollEveryMinutes = N only runs on every Nth minute.\nconst minute = Math.floor(Date.now() / 60000);\n\nreturn SOURCES\n  .filter((s) => s.enabled !== false && URL_BUILDERS[s.type])\n  .filter((s) => minute % Math.max(1, s.pollEveryMinutes || 1) === 0)\n  .map((s) => ({ json: { ...s, ...(s.type === 'adzuna' ? { what_or: ADZUNA_WHAT_OR } : {}), url: s.url || URL_BUILDERS[s.type](s) } }));\n"
+      },
+      "id": "4457a810-a922-4687-8cad-52de2665fea8",
+      "name": "Job Sources Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        128
+      ],
+      "notes": "EDIT ME: list of company career boards (official public Greenhouse / Lever / Ashby APIs) plus Adzuna India searches. Add a source by adding one line. Outputs only the sources due this minute."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ak",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "adzuna",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5035cbf8-513e-41d7-a144-0faa1a4a7dd1",
+      "name": "Needs API Key?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        496,
+        320
+      ],
+      "notes": "Routes Adzuna searches to the authenticated request; all other boards use the open public request (no keys sent to them)."
+    },
+    {
+      "parameters": {
+        "url": "https://api.adzuna.com/v1/api/jobs/in/search/1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "results_per_page",
+              "value": "50"
+            },
+            {
+              "name": "sort_by",
+              "value": "date"
+            },
+            {
+              "name": "max_days_old",
+              "value": "3"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            },
+            {
+              "name": "where",
+              "value": "={{ $json.where }}"
+            },
+            {
+              "name": "what_or",
+              "value": "={{ $json.what_or }}"
+            },
+            {
+              "name": "what",
+              "value": "={{ $json.what || \"\" }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "4d877c7e-cefe-4b5c-a395-ba213eab7329",
+      "name": "Fetch Adzuna Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        720,
+        320
+      ],
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "xXFRMUJAJzHo8N1O",
+          "name": "Adzuna API (Ravi T)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Official Adzuna India search API (app_id + app_key come from the credential). On error it outputs an error item that is skipped, so other sources still run."
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================================\n// NORMALIZE + PRE-FILTER (role & location) -- EDIT KEYWORDS HERE\n// Converts every source's response into one common job shape, drops\n// failed sources silently, and keeps only target roles in target cities.\n// =====================================================================\nconst ROLE_PATTERNS = [\n  /software engineer/i, /software developer/i, /software development engineer/i, /\\bsde\\b/i,\n  /back[\\s-]?end/i, /python/i, /django/i,\n  /data analyst/i, /data scien/i,\n  /machine learning/i, /\\bml\\b/i, /\\bai\\b/i, /ai\\/ml/i, /artificial intelligence/i,\n  /associate software/i, /graduate engineer trainee/i, /\\bget\\b/i, /graduate trainee/i,\n  /analyst/i, /fresher/i, /new grad/i, /entry[\\s-]level/i,\n];\n// Titles that signal seniority or a role type we do not want.\nconst EXCLUDE_TITLE = /senior|\\bsr\\b|\\bsr\\.|\\blead\\b|principal|\\bstaff\\b|manager|director|head of|architect|\\bvp\\b|vice president|\\b(ii|iii|iv)\\b|\\b(sde|engineer|developer|analyst|scientist)[\\s-]*(2|3|4)\\b|\\bintern(ship)?\\b|intermediate|mid[\\s-]level|\\bl[2-9]\\b/i;\n\nconst CITY_PATTERNS = [/hyderabad/i, /bangalore|bengaluru/i, /chennai/i];\nconst MAX_AGE_DAYS = 30; // ignore postings older than this (when a date exists)\n\nfunction locationOk(locs, isRemote, countryIsIndia) {\n  const text = locs.filter(Boolean).join(' | ');\n  if (CITY_PATTERNS.some((p) => p.test(text))) return true;\n  const remote = isRemote || /remote|work from home|wfh/i.test(text);\n  const india = countryIsIndia || /india/i.test(text);\n  return remote && india;\n}\nfunction roleOk(title) {\n  return ROLE_PATTERNS.some((p) => p.test(title)) && !EXCLUDE_TITLE.test(title);\n}\nfunction fresh(posted) {\n  if (!posted) return true;\n  const t = new Date(posted).getTime();\n  if (isNaN(t)) return true;\n  return Date.now() - t <= MAX_AGE_DAYS * 86400000;\n}\n\nconst out = [];\nconst seen = new Set();\nconst items = $input.all();\n\nfor (let i = 0; i < items.length; i++) {\n  const d = items[i].json || {};\n  let src;\n  try { src = $('Job Sources Config').itemMatching(i).json; } catch (e) { src = null; }\n  if (!src || d.error) continue; // failed source -> skip, others continue\n\n  const jobs = [];\n  try {\n    if (src.type === 'greenhouse') {\n      for (const j of d.jobs || []) {\n        const offices = (j.offices || []).map((o) => o.name);\n        jobs.push({\n          title: j.title, location: (j.location && j.location.name) || '',\n          locs: [(j.location && j.location.name) || ''].concat(offices),\n          remote: false, india: false,\n          posted_at: j.first_published || j.updated_at || '',\n          job_url: j.absolute_url, description: '',\n          detail_url: 'https://boards-api.greenhouse.io/v1/boards/' + src.slug + '/jobs/' + j.id,\n        });\n      }\n    } else if (src.type === 'lever') {\n      const list = Array.isArray(d) ? d : (d.id && d.text ? [d] : []);\n      for (const j of list) {\n        const c = j.categories || {};\n        const lists = (j.lists || []).map((l) => (l.text || '') + ': ' + String(l.content || '')).join(' ');\n        jobs.push({\n          title: j.text, location: c.location || '',\n          locs: [c.location || ''].concat(c.allLocations || []),\n          remote: j.workplaceType === 'remote', india: j.country === 'IN',\n          posted_at: j.createdAt ? new Date(j.createdAt).toISOString() : '',\n          job_url: j.applyUrl || j.hostedUrl,\n          description: (j.descriptionPlain || '') + ' ' + lists + ' ' + (j.additionalPlain || ''),\n          detail_url: '',\n        });\n      }\n    } else if (src.type === 'adzuna') {\n      for (const j of d.results || []) {\n        const area = (j.location && j.location.area) || [];\n        const disp = (j.location && j.location.display_name) || '';\n        // Strip tracking params so the same ad always has the same URL (dedupe key)\n        const url = String(j.redirect_url || '').split('?')[0];\n        jobs.push({\n          title: j.title, location: disp,\n          locs: [disp].concat(area),\n          remote: /remote|work from home|wfh/i.test((j.title || '') + ' ' + (j.description || '')),\n          india: true,\n          posted_at: j.created || '',\n          job_url: url,\n          description: j.description || '', detail_url: '',\n          company: (j.company && j.company.display_name) || '',\n        });\n      }\n    } else if (src.type === 'ashby') {\n      for (const j of d.jobs || []) {\n        if (j.isListed === false) continue;\n        const sec = (j.secondaryLocations || []).map((s) => (typeof s === 'string' ? s : s.location));\n        const country = j.address && j.address.postalAddress ? j.address.postalAddress.addressCountry : '';\n        jobs.push({\n          title: j.title, location: j.location || '',\n          locs: [j.location || ''].concat(sec),\n          remote: !!j.isRemote || j.workplaceType === 'Remote', india: /india/i.test(country || ''),\n          posted_at: j.publishedAt || '',\n          job_url: j.applyUrl || j.jobUrl,\n          description: j.descriptionPlain || '', detail_url: '',\n        });\n      }\n    }\n  } catch (e) {\n    continue; // malformed response from one source must not break the run\n  }\n\n  for (const j of jobs) {\n    if (!j.job_url || !j.title) continue;\n    if (seen.has(j.job_url)) continue; // in-run duplicate guard\n    if (!roleOk(j.title)) continue;\n    if (!locationOk(j.locs, j.remote, j.india)) continue;\n    if (!fresh(j.posted_at)) continue;\n    seen.add(j.job_url);\n    let location = j.location;\n    // If the primary location is elsewhere, show the matching target city instead\n    if (!CITY_PATTERNS.some((p) => p.test(location))) {\n      const hit = j.locs.find((l) => l && CITY_PATTERNS.some((p) => p.test(l)));\n      if (hit) location = hit;\n    }\n    if (!location || (j.remote && !CITY_PATTERNS.some((p) => p.test(location)))) {\n      location = (location ? location + ' ' : '') + (j.remote ? '(Remote India)' : '');\n    }\n    out.push({\n      json: {\n        job_url: j.job_url,\n        title: j.title,\n        company: j.company || src.company,\n        location: location.trim(),\n        posted_at: j.posted_at,\n        description: j.description,\n        detail_url: j.detail_url,\n        needs_details: !!j.detail_url,\n        source: src.type === 'adzuna' ? 'Jobs by Adzuna' : src.company + ' careers (' + src.type + ')',\n      },\n    });\n  }\n}\nreturn out;\n"
+      },
+      "id": "06e40049-ef57-4dd0-a533-c48846234533",
+      "name": "Normalize & Filter Role/Location",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        128
+      ],
+      "notes": "EDIT ME: role keywords, excluded seniority words and target cities. Converts every source to one job format and keeps target roles in Hyderabad / Bangalore / Chennai / Remote India."
+    },
+    {
+      "parameters": {
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "FHhxrc0IseVHenBI",
+          "cachedResultName": "job_finder_seen_jobs"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "job_url",
+              "keyValue": "={{ $json.job_url }}"
+            }
+          ]
+        }
+      },
+      "id": "55eec2ef-13e5-403d-87d9-5f9668e67760",
+      "name": "Skip Already Seen Jobs",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        208
+      ],
+      "notes": "Keeps only jobs whose application URL is not yet in the job_finder_seen_jobs data table (the URL is the unique ID)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "nd",
+              "leftValue": "={{ $json.needs_details }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "12bbb87c-d9ab-48b4-9721-1674e63bd84f",
+      "name": "Needs Job Details?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1024,
+        208
+      ],
+      "notes": "Greenhouse list responses contain no description, so the full posting is fetched only for new jobs (keeps each run light)."
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.detail_url }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 200
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "8cb7db68-66b9-4c84-9fd1-d08d348eba50",
+      "name": "Fetch Job Description",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1248,
+        128
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Gets the full description from the public Greenhouse job endpoint. Errors are tolerated."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Re-attach the job record and add the full description fetched from the\n// Greenhouse job-detail endpoint. If the detail call failed, keep the job\n// with an empty description (it is still evaluated, not lost).\nconst job = $('Needs Job Details?').item.json;\nconst content = $json && !$json.error ? ($json.content || '') : '';\nreturn { json: { ...job, description: content } };\n"
+      },
+      "id": "d5d7bc72-8701-4baf-a733-a3b76f7b2479",
+      "name": "Attach Description",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        128
+      ],
+      "notes": "Merges the fetched description back into the job record."
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================================\n// EXPERIENCE FILTER + TELEGRAM MESSAGE BUILDER\n// Rejects jobs whose description requires more than MAX_YEARS of\n// experience, labels the experience, builds a short summary and the\n// Telegram message (HTML-escaped).\n// =====================================================================\nconst MAX_YEARS = 1;\nconst SUMMARY_CHARS = 300;\nconst FRESHER_RE = /fresher|entry[\\s-]level|new grad|graduate engineer trainee|2026 (grad|batch|pass)|batch of 2026|class of 2026|0\\s*(-|–|to)\\s*1\\s*(years?|yrs?)|no (prior )?experience required/i;\n\nfunction toText(html) {\n  return String(html || '')\n    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"')\n    .replace(/&#39;/g, \"'\").replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&[a-z#0-9]+;/gi, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\nfunction experienceMentions(text) {\n  const re = /(\\d{1,2})\\s*(?:\\+|plus)?\\s*(?:(?:-|–|to)\\s*(\\d{1,2}))?\\s*\\+?\\s*(?:years?|yrs?)/gi;\n  const found = [];\n  let m;\n  while ((m = re.exec(text)) !== null) {\n    const ctx = text.slice(Math.max(0, m.index - 80), m.index + m[0].length + 80).toLowerCase();\n    if (!/experience|exp\\b|work(ing)?\\b|industry/.test(ctx)) continue;\n    const lo = parseInt(m[1], 10);\n    if (lo <= 30) found.push({ lo: lo, raw: m[0].trim() });\n  }\n  return found;\n}\nfunction esc(s) {\n  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n}\nfunction summarize(text) {\n  if (!text) return 'No description available - open the link for details.';\n  if (text.length <= SUMMARY_CHARS) return text;\n  const cut = text.slice(0, SUMMARY_CHARS);\n  return cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : SUMMARY_CHARS) + '...';\n}\n\nreturn $input.all().map((item) => {\n  const job = item.json;\n  const text = toText(job.description);\n  const mentions = experienceMentions(text);\n  const required = mentions.length ? Math.max.apply(null, mentions.map((x) => x.lo)) : null;\n  const isFresher = FRESHER_RE.test(job.title + ' ' + text);\n\n  let experience = 'Not specified (no senior requirement found)';\n  if (isFresher) experience = 'Fresher / Entry level (0-1 yrs)';\n  if (required !== null && !isFresher) {\n    const best = mentions.find((x) => x.lo === required);\n    experience = best ? best.raw : required + ' years';\n  }\n  const matched = required === null || required <= MAX_YEARS;\n\n  const summary = summarize(text);\n  const message =\n    '🔥 NEW JOB\\n\\n' +\n    '💼 ' + esc(job.title) + '\\n' +\n    '🏢 ' + esc(job.company) + '\\n' +\n    '📍 ' + esc(job.location) + '\\n' +\n    '🎓 Experience: ' + esc(experience) + '\\n\\n' +\n    '📝 ' + esc(summary) + '\\n\\n' +\n    '🔗 Apply:\\n' + esc(job.job_url) + '\\n\\n' +\n    'Source: ' + esc(job.source);\n\n  return {\n    json: {\n      job_url: job.job_url,\n      title: job.title,\n      company: job.company,\n      location: job.location,\n      posted_at: job.posted_at,\n      experience: experience,\n      summary: summary,\n      source: job.source,\n      matched: matched,\n      reject_reason: matched ? '' : 'requires ' + required + '+ years',\n      telegram_message: message,\n    },\n  };\n});\n"
+      },
+      "id": "6d51e2d7-f321-44a4-a3a6-0a4ee1537d63",
+      "name": "Check Experience & Build Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1696,
+        208
+      ],
+      "notes": "Reads the description for experience requirements (rejects >1 year), extracts a short summary and builds the Telegram message."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "m",
+              "leftValue": "={{ $json.matched }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "deebcec1-f469-421f-8ab1-c1526165a314",
+      "name": "Is Matching Job?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        224
+      ],
+      "notes": "True = 0-1 year job, send it. False = needs more experience, only remember it so it is not re-checked."
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "FHhxrc0IseVHenBI",
+          "cachedResultName": "job_finder_seen_jobs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_url": "={{ $('Is Matching Job?').item.json.job_url }}",
+            "title": "={{ $('Is Matching Job?').item.json.title }}",
+            "company": "={{ $('Is Matching Job?').item.json.company }}",
+            "source": "={{ $('Is Matching Job?').item.json.source }}",
+            "status": "sent",
+            "found_at": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            {
+              "id": "job_url",
+              "displayName": "job_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "found_at",
+              "displayName": "found_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ceb0accc-9965-43a5-958f-472d3ed380ca",
+      "name": "Remember Sent Job",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1776,
+        128
+      ],
+      "notes": "Stores the URL of every matching job so it is never sent twice."
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "saUktwhUYHHwnPIX",
+          "cachedResultName": "job_finder_subscribers"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "active",
+              "condition": "isTrue"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "7447a5ff-ecc9-439b-a6d8-7f0c67a964b4",
+      "name": "Get Active Subscribers",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1552,
+        512
+      ],
+      "notes": "Loads everyone who sent /start to the bot and has not sent /stop. One output item per subscriber for each job."
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $('Is Matching Job?').item.json.telegram_message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "fac78716-e6d2-4a0a-9b4c-0a37e7433429",
+      "name": "Send Job to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1552,
+        128
+      ],
+      "webhookId": "e793b4e0-d750-44f7-9151-8a6a5f11fde7",
+      "credentials": {
+        "telegramApi": {
+          "id": "4jtFg9TwGKbGbarg",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Sends each new matching job to every active subscriber. A failed send (e.g. a user blocked the bot) is skipped so other subscribers still get the job."
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "FHhxrc0IseVHenBI",
+          "cachedResultName": "job_finder_seen_jobs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_url": "={{ $json.job_url }}",
+            "title": "={{ $json.title }}",
+            "company": "={{ $json.company }}",
+            "source": "={{ $json.source }}",
+            "status": "={{ \"rejected: \" + $json.reject_reason }}",
+            "found_at": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            {
+              "id": "job_url",
+              "displayName": "job_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "found_at",
+              "displayName": "found_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4a5b55af-129b-4571-af58-d287449cbfa1",
+      "name": "Remember Rejected Job",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1552,
+        320
+      ],
+      "notes": "Stores jobs rejected for experience so their descriptions are not fetched again every minute."
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 4,
+              "batchInterval": 250
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "71196389-5722-4a84-8de8-f10845445324",
+      "name": "Fetch Public Job Feeds",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        496,
+        128
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Calls each public job-board API once (no login, no scraping). On error/timeout it outputs an error item that is skipped later, so other sources still run."
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "5e41b050-19d4-4a92-9787-77532d128148",
+      "name": "Telegram Bot Messages",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        224
+      ],
+      "webhookId": "cb359618-53e3-4a5d-bdb4-ce2018bd1cf6",
+      "credentials": {
+        "telegramApi": {
+          "id": "4jtFg9TwGKbGbarg",
+          "name": "Telegram account"
+        }
+      },
+      "notes": "Receives every message anyone sends to the bot (/start, /stop, anything else)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "st",
+              "leftValue": "={{ ($json.message.text || \"\").trim().toLowerCase() }}",
+              "rightValue": "/start",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3c206b6f-0298-4848-a31b-323696296df2",
+      "name": "Is /start?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        272,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "saUktwhUYHHwnPIX",
+          "cachedResultName": "job_finder_subscribers"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ String($json.message.chat.id) }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ String($json.message.chat.id) }}",
+            "first_name": "={{ $json.message.from.first_name || \"\" }}",
+            "username": "={{ $json.message.from.username || \"\" }}",
+            "active": true,
+            "subscribed_at": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "first_name",
+              "displayName": "first_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "username",
+              "displayName": "username",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "active",
+              "displayName": "active",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subscribed_at",
+              "displayName": "subscribed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "65ead111-5e04-4eb9-992a-618cdee3e90a",
+      "name": "Subscribe User",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        496,
+        512
+      ],
+      "notes": "Adds the chat to the subscriber list (or re-activates it)."
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Bot Messages').item.json.message.chat.id }}",
+        "text": "=Hi {{ $('Telegram Bot Messages').item.json.message.from.first_name || \"there\" }}! You are subscribed. New fresher (0-1 year) tech jobs in Hyderabad, Bangalore, Chennai and Remote India will be sent here as soon as they are found.\n\nSend /stop anytime to unsubscribe.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "6554dda7-000a-49a0-9cc9-2295a976008d",
+      "name": "Send Welcome",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        512
+      ],
+      "webhookId": "2b31ea13-86e5-4e70-9d4f-69eece60f1b4",
+      "credentials": {
+        "telegramApi": {
+          "id": "4jtFg9TwGKbGbarg",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "sp",
+              "leftValue": "={{ ($json.message.text || \"\").trim().toLowerCase() }}",
+              "rightValue": "/stop",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8eb473e2-0b83-4f96-a6ab-edcb05f2907c",
+      "name": "Is /stop?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        496,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "saUktwhUYHHwnPIX",
+          "cachedResultName": "job_finder_subscribers"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ String($json.message.chat.id) }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ String($json.message.chat.id) }}",
+            "first_name": "={{ $json.message.from.first_name || \"\" }}",
+            "username": "={{ $json.message.from.username || \"\" }}",
+            "active": false
+          },
+          "schema": [
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "first_name",
+              "displayName": "first_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "username",
+              "displayName": "username",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "active",
+              "displayName": "active",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subscribed_at",
+              "displayName": "subscribed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f913b7ba-10f2-4b13-baf9-1096f54054f8",
+      "name": "Unsubscribe User",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        704
+      ],
+      "notes": "Marks the chat inactive so it stops receiving jobs."
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Bot Messages').item.json.message.chat.id }}",
+        "text": "You are unsubscribed and will not get job alerts anymore. Send /start to subscribe again.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "72fea570-b394-4ef4-9c09-35eb38fc08b0",
+      "name": "Send Goodbye",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        944,
+        544
+      ],
+      "webhookId": "92a27408-8c2f-478f-b9b7-350e45293946",
+      "credentials": {
+        "telegramApi": {
+          "id": "4jtFg9TwGKbGbarg",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "Send /start to get fresher tech job alerts, or /stop to unsubscribe.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "bf735378-f1b1-4f1e-90df-89ea7f51653d",
+      "name": "Send Help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        896
+      ],
+      "webhookId": "48392044-d818-4b5c-ad83-6aaa5e1286ca",
+      "credentials": {
+        "telegramApi": {
+          "id": "4jtFg9TwGKbGbarg",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 1 Minute": {
+      "main": [
+        [
+          {
+            "node": "Job Sources Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job Sources Config": {
+      "main": [
+        [
+          {
+            "node": "Needs API Key?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs API Key?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Adzuna Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Public Job Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Adzuna Jobs": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Filter Role/Location",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Filter Role/Location": {
+      "main": [
+        [
+          {
+            "node": "Skip Already Seen Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Already Seen Jobs": {
+      "main": [
+        [
+          {
+            "node": "Needs Job Details?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Job Details?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Job Description",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Experience & Build Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Job Description": {
+      "main": [
+        [
+          {
+            "node": "Attach Description",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Description": {
+      "main": [
+        [
+          {
+            "node": "Check Experience & Build Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Experience & Build Message": {
+      "main": [
+        [
+          {
+            "node": "Is Matching Job?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Matching Job?": {
+      "main": [
+        [
+          {
+            "node": "Remember Sent Job",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Active Subscribers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Remember Rejected Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Subscribers": {
+      "main": [
+        [
+          {
+            "node": "Send Job to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Public Job Feeds": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Filter Role/Location",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Bot Messages": {
+      "main": [
+        [
+          {
+            "node": "Is /start?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is /start?": {
+      "main": [
+        [
+          {
+            "node": "Subscribe User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is /stop?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subscribe User": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is /stop?": {
+      "main": [
+        [
+          {
+            "node": "Unsubscribe User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Help",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unsubscribe User": {
+      "main": [
+        [
+          {
+            "node": "Send Goodbye",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9864ddcd-67be-4169-977d-59209a5b5365",
+  "meta": {
+    "instanceId": "fd89134e18c315c6d7717f34f4857cdea16da6e979c9862c2534095d29ed68f5"
+  },
+  "nodeGroups": [
+    {
+      "id": "4d678188-4cf0-45a3-b5bd-c7b8fa23f415",
+      "name": "Collect job postings",
+      "nodeIds": [
+        "4457a810-a922-4687-8cad-52de2665fea8",
+        "5035cbf8-513e-41d7-a144-0faa1a4a7dd1",
+        "4d877c7e-cefe-4b5c-a395-ba213eab7329",
+        "71196389-5722-4a84-8de8-f10845445324",
+        "06e40049-ef57-4dd0-a533-c48846234533"
+      ],
+      "description": "Polls the career boards and Adzuna searches due this minute, keeps target roles in Hyderabad, Bangalore, Chennai or Remote India"
+    },
+    {
+      "id": "d1c24e57-c526-4fe7-971e-a57aaba259fa",
+      "name": "Screen new jobs",
+      "nodeIds": [
+        "55eec2ef-13e5-403d-87d9-5f9668e67760",
+        "12bbb87c-d9ab-48b4-9721-1674e63bd84f",
+        "8cb7db68-66b9-4c84-9fd1-d08d348eba50",
+        "d5d7bc72-8701-4baf-a733-a3b76f7b2479",
+        "6d51e2d7-f321-44a4-a3a6-0a4ee1537d63"
+      ],
+      "description": "Ignores URLs already handled, pulls missing descriptions, rejects roles needing over 1 year and drafts the alert text"
+    },
+    {
+      "id": "91806d28-1fba-427c-965a-4c4a66863085",
+      "name": "Deliver new matches",
+      "nodeIds": [
+        "deebcec1-f469-421f-8ab1-c1526165a314",
+        "7447a5ff-ecc9-439b-a6d8-7f0c67a964b4",
+        "fac78716-e6d2-4a0a-9b4c-0a37e7433429",
+        "ceb0accc-9965-43a5-958f-472d3ed380ca",
+        "4a5b55af-129b-4571-af58-d287449cbfa1"
+      ],
+      "description": "Sends each 0-1 year job to every subscriber on Telegram and records handled URLs so nothing is sent or re-checked twice"
+    },
+    {
+      "id": "bb08e78d-ee90-4bb3-89e7-e92693687050",
+      "name": "Manage subscribers",
+      "nodeIds": [
+        "3c206b6f-0298-4848-a31b-323696296df2",
+        "65ead111-5e04-4eb9-992a-618cdee3e90a",
+        "6554dda7-000a-49a0-9cc9-2295a976008d",
+        "8eb473e2-0b83-4f96-a6ab-edcb05f2907c",
+        "f913b7ba-10f2-4b13-baf9-1096f54054f8",
+        "72fea570-b394-4ef4-9c09-35eb38fc08b0",
+        "bf735378-f1b1-4f1e-90df-89ea7f51653d"
+      ],
+      "description": "Anyone messaging the bot: /start joins the alert list with a welcome, /stop leaves it, anything else gets help"
+    }
+  ],
+  "id": "990cfmqClPRyRaeG",
+  "tags": []
+}
